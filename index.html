@@ -41,62 +41,124 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Space Invaders</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #000; }
-    canvas { border: 2px solid #fff; }
+    body { margin: 0; background: #0a0a0a; overflow: hidden; }
+    #game-container { display: flex; height: 100vh; }
+    #instructions { width: 200px; padding: 20px; color: #e0e0e0; }
+    #canvas-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; }
+    canvas { border: 2px solid #4ade80; box-shadow: 0 0 20px rgba(74, 222, 128, 0.5); }
   </style>
 </head>
 <body>
+  <div id="game-container" class="font-mono">
+    <div id="instructions" class="bg-gray-900 p-4">
+      <h2 class="text-xl text-green-400 mb-4">Controls</h2>
+      <ul class="text-sm space-y-2">
+        <li><span class="text-green-400">← →</span>: Move ship</li>
+        <li><span class="text-green-400">Space</span>: Shoot</li>
+        <li><span class="text-green-400">R</span>: Restart (when game over)</li>
+      </ul>
+      <h2 class="text-xl text-green-400 mt-6 mb-4">Objective</h2>
+      <p class="text-sm">Destroy all enemy ships to advance levels. Avoid enemy bullets. You have 3 lives.</p>
+    </div>
+    <div id="canvas-container"></div>
+  </div>
 <script>
 let player;
 let enemies = [];
-let bullets = [];
+let playerBullets = [];
+let enemyBullets = [];
 let score = 0;
+let lives = 3;
+let level = 1;
+let gameState = 'playing';
+let lastEnemyShot = 0;
 
 function setup() {
-  createCanvas(600, 400);
+  let canvas = createCanvas(600, 400);
+  canvas.parent('canvas-container');
   player = new Player();
-  // Initialize 3 rows of 5 enemies
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 5; j++) {
-      enemies.push(new Enemy(100 + j * 60, 50 + i * 50));
-    }
-  }
+  spawnEnemies();
 }
 
 function draw() {
-  background(0);
-  // Display score
-  fill(255);
-  textSize(20);
-  text(`Score: ${score}`, 10, 30);
+  background(10);
   
-  // Update and show player
+  // Display UI
+  fill(255);
+  textSize(16);
+  textAlign(LEFT);
+  text(`Score: ${score}`, 10, 30);
+  text(`Lives: ${lives}`, 10, 50);
+  text(`Level: ${level}`, 10, 70);
+
+  if (gameState === 'gameover') {
+    fill(255, 0, 0);
+    textSize(40);
+    textAlign(CENTER, CENTER);
+    text('Game Over', width / 2, height / 2);
+    textSize(20);
+    text('Press R to Restart', width / 2, height / 2 + 40);
+    return;
+  }
+
+  if (gameState === 'win') {
+    fill(0, 255, 0);
+    textSize(40);
+    textAlign(CENTER, CENTER);
+    text('Level Cleared!', width / 2, height / 2);
+    textSize(20);
+    text('Press R for Next Level', width / 2, height / 2 + 40);
+    return;
+  }
+
+  // Update player
   player.show();
   player.move();
-  
-  // Update and show bullets
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    bullets[i].show();
-    bullets[i].move();
-    if (bullets[i].offscreen()) {
-      bullets.splice(i, 1);
+
+  // Update player bullets
+  for (let i = playerBullets.length - 1; i >= 0; i--) {
+    playerBullets[i].show();
+    playerBullets[i].move();
+    if (playerBullets[i].offscreen()) {
+      playerBullets.splice(i, 1);
       continue;
     }
-    // Check bullet-enemy collision
     for (let j = enemies.length - 1; j >= 0; j--) {
-      if (bullets[i] && bullets[i].hits(enemies[j])) {
+      if (playerBullets[i] && playerBullets[i].hits(enemies[j])) {
         enemies.splice(j, 1);
-        bullets.splice(i, 1);
+        playerBullets.splice(i, 1);
         score += 10;
+        // playSound('hit'); // Uncomment with p5.sound
         break;
       }
     }
   }
-  
-  // Update and show enemies
+
+  // Update enemy bullets
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    enemyBullets[i].show();
+    enemyBullets[i].move();
+    if (enemyBullets[i].offscreen()) {
+      enemyBullets.splice(i, 1);
+      continue;
+    }
+    if (enemyBullets[i] && enemyBullets[i].hits(player)) {
+      lives--;
+      enemyBullets.splice(i, 1);
+      // playSound('hurt'); // Uncomment with p5.sound
+      if (lives <= 0) {
+        gameState = 'gameover';
+        // playSound('gameover'); // Uncomment with p5.sound
+      }
+    }
+  }
+
+  // Update enemies
   let edge = false;
   for (let enemy of enemies) {
     enemy.show();
@@ -105,26 +167,73 @@ function draw() {
       edge = true;
     }
   }
-  
-  // Move enemies down and reverse direction if they hit edge
+
   if (edge) {
     for (let enemy of enemies) {
       enemy.shiftDown();
     }
   }
-  
-  // Check if enemies reach player level
+
+  // Enemy shooting
+  if (frameCount - lastEnemyShot > 60 && random() < 0.02 * level) {
+    let enemy = random(enemies);
+    if (enemy) {
+      enemyBullets.push(new Bullet(enemy.x + 15, enemy.y + 20, 3));
+      lastEnemyShot = frameCount;
+      // playSound('enemyShot'); // Uncomment with p5.sound
+    }
+  }
+
+  // Check for game over or win
   for (let enemy of enemies) {
     if (enemy.y > height - 50) {
-      gameOver();
+      lives = 0;
+      gameState = 'gameover';
+      // playSound('gameover'); // Uncomment with p5.sound
     }
+  }
+
+  if (enemies.length === 0) {
+    gameState = 'win';
+    // playSound('win'); // Uncomment with p5.sound
   }
 }
 
 function keyPressed() {
-  if (keyCode === 32) { // Spacebar to shoot
-    bullets.push(new Bullet(player.x + 15, player.y));
+  if (gameState === 'playing' && keyCode === 32) { // Spacebar
+    playerBullets.push(new Bullet(player.x + 15, player.y - 15, -5));
+    // playSound('shoot'); // Uncomment with p5.sound
   }
+  if ((gameState === 'gameover' || gameState === 'win') && keyCode === 82) { // R key
+    resetGame();
+    if (gameState === 'win') {
+      level++;
+      spawnEnemies();
+    }
+  }
+}
+
+function spawnEnemies() {
+  enemies = [];
+  let rows = 3 + Math.floor(level / 2);
+  let cols = 5;
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
+      enemies.push(new Enemy(100 + j * 60, 50 + i * 50, 1 + level * 0.5));
+    }
+  }
+  gameState = 'playing';
+}
+
+function resetGame() {
+  player = new Player();
+  playerBullets = [];
+  enemyBullets = [];
+  score = 0;
+  lives = 3;
+  level = 1;
+  spawnEnemies();
+  loop();
 }
 
 class Player {
@@ -133,12 +242,12 @@ class Player {
     this.y = height - 30;
     this.speed = 5;
   }
-  
+
   show() {
-    fill(0, 255, 0);
+    fill(74, 222, 128);
     triangle(this.x, this.y, this.x + 30, this.y, this.x + 15, this.y - 30);
   }
-  
+
   move() {
     if (keyIsDown(LEFT_ARROW)) {
       this.x -= this.speed;
@@ -151,22 +260,22 @@ class Player {
 }
 
 class Enemy {
-  constructor(x, y) {
+  constructor(x, y, speed) {
     this.x = x;
     this.y = y;
-    this.speed = 2;
+    this.speed = speed || 2;
     this.direction = 1;
   }
-  
+
   show() {
-    fill(255, 0, 0);
-    rect(this.x, this.y, 30, 20);
+    fill(220, 38, 38);
+    rect(this.x, this.y, 30, 20, 5);
   }
-  
+
   move() {
     this.x += this.speed * this.direction;
   }
-  
+
   shiftDown() {
     this.y += 20;
     this.direction *= -1;
@@ -174,24 +283,34 @@ class Enemy {
 }
 
 class Bullet {
-  constructor(x, y) {
+  constructor(x, y, speed) {
     this.x = x;
     this.y = y;
-    this.speed = -5;
+    this.speed = speed || -5;
   }
-  
+
   show() {
-    fill(255);
-    rect(this.x, this.y, 5, 10);
+    fill(this.speed < 0 ? 255 : 255, 165, 0);
+    rect(this.x, this.y, 5, 10, 2);
   }
-  
+
   move() {
     this.y += this.speed;
   }
-  
+
   offscreen() {
-    return this.y < 0;
+    return this.y < 0 || this.y > height;
   }
-  
-  hits(enemy) {
-    let d = dist(this.x, this.y, enemy.x + 15, enemy.y +
+
+  hits(target) {
+    let d = dist(this.x, this.y, target.x + 15, target.y + (target instanceof Player ? -15 : 10));
+    return d < 15;
+  }
+}
+
+// function playSound(type) {
+//   // Add p5.sound library and sound files for shoot, hit, hurt, gameover, win, enemyShot
+// }
+</script>
+</body>
+</html>
