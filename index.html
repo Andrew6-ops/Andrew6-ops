@@ -146,6 +146,208 @@
             <p>This website showcases a simple structure with responsive design and basic interactivity.</p>
         </section>
     </main>
+
+
+    <main>
+        <script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Space Invaders</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <style>
+    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #000; }
+    canvas { border: 2px solid #fff; }
+  </style>
+</head>
+<body>
+<script>
+let player;
+let enemies = [];
+let bullets = [];
+let score = 0;
+
+function setup() {
+  createCanvas(600, 400);
+  player = new Player();
+  // Initialize 3 rows of 5 enemies
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 5; j++) {
+      enemies.push(new Enemy(100 + j * 60, 50 + i * 50));
+    }
+  }
+}
+
+function draw() {
+  background(0);
+  // Display score
+  fill(255);
+  textSize(20);
+  text(`Score: ${score}`, 10, 30);
+  
+  // Update and show player
+  player.show();
+  player.move();
+  
+  // Update and show bullets
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].show();
+    bullets[i].move();
+    if (bullets[i].offscreen()) {
+      bullets.splice(i, 1);
+      continue;
+    }
+    // Check bullet-enemy collision
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (bullets[i] && bullets[i].hits(enemies[j])) {
+        enemies.splice(j, 1);
+        bullets.splice(i, 1);
+        score += 10;
+        break;
+      }
+    }
+  }
+  
+  // Update and show enemies
+  let edge = false;
+  for (let enemy of enemies) {
+    enemy.show();
+    enemy.move();
+    if (enemy.x < 10 || enemy.x > width - 30) {
+      edge = true;
+    }
+  }
+  
+  // Move enemies down and reverse direction if they hit edge
+  if (edge) {
+    for (let enemy of enemies) {
+      enemy.shiftDown();
+    }
+  }
+  
+  // Check if enemies reach player level
+  for (let enemy of enemies) {
+    if (enemy.y > height - 50) {
+      gameOver();
+    }
+  }
+}
+
+function keyPressed() {
+  if (keyCode === 32) { // Spacebar to shoot
+    bullets.push(new Bullet(player.x + 15, player.y));
+  }
+}
+
+class Player {
+  constructor() {
+    this.x = width / 2;
+    this.y = height - 30;
+    this.speed = 5;
+  }
+  
+  show() {
+    fill(0, 255, 0);
+    triangle(this.x, this.y, this.x + 30, this.y, this.x + 15, this.y - 30);
+  }
+  
+  move() {
+    if (keyIsDown(LEFT_ARROW)) {
+      this.x -= this.speed;
+    }
+    if (keyIsDown(RIGHT_ARROW)) {
+      this.x += this.speed;
+    }
+    this.x = constrain(this.x, 0, width - 30);
+  }
+}
+
+class Enemy {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.speed = 2;
+    this.direction = 1;
+  }
+  
+  show() {
+    fill(255, 0, 0);
+    rect(this.x, this.y, 30, 20);
+  }
+  
+  move() {
+    this.x += this.speed * this.direction;
+  }
+  
+  shiftDown() {
+    this.y += 20;
+    this.direction *= -1;
+  }
+}
+
+class Bullet {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.speed = -5;
+  }
+  
+  show() {
+    fill(255);
+    rect(this.x, this.y, 5, 10);
+  }
+  
+  move() {
+    this.y += this.speed;
+  }
+  
+  offscreen() {
+    return this.y < 0;
+  }
+  
+  hits(enemy) {
+    let d = dist(this.x, this.y, enemy.x + 15, enemy.y +
+                
+    </main>
     
     <footer>
         <p>&copy; 2025 Test Website. All rights reserved.</p>
